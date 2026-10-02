@@ -55,6 +55,12 @@ EOF
 else
   printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict/>\n</plist>\n' > "$ent"
 fi
+# Info.plist names the iCloud folder that iCloud Drive shows as "NEO Pocket";
+# it has to name your container, or the books sync to a folder nobody sees
+plist="$build/Info.plist"
+sed "s/iCloud\.com\.hughhowey\.neo\.pocket/$ICLOUD_CONTAINER/g" "$pocket/ios/App/App/Info.plist" > "$plist"
+# iCloud Drive reads that only when the build number changes: a new one each time
+buildno="$(date +%Y%m%d%H%M)"
 
 security unlock-keychain ~/Library/Keychains/login.keychain-db
 
@@ -64,7 +70,7 @@ cd "$pocket/ios/App"
 xcodebuild -project App.xcodeproj -scheme App -configuration Debug -allowProvisioningUpdates \
   -destination "id=$DEVICE" -derivedDataPath "$build/dd" \
   DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-  CODE_SIGN_ENTITLEMENTS="$ent" build > "$log" 2>&1 \
+  CODE_SIGN_ENTITLEMENTS="$ent" INFOPLIST_FILE="$plist" CURRENT_PROJECT_VERSION="$buildno" build > "$log" 2>&1 \
   || { grep -E "errSec|error:" "$log" | cut -c1-200; echo "BUILD FAILED (log: $log)"; exit 1; }
 
 echo "Installing…"
