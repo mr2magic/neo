@@ -128,3 +128,12 @@ body.light .book { box-shadow: 2px 3px 6px rgba(0,0,0,0.2); }
 body.light #pocket-undo { background: #f1eee8; border-color: #dcd7ce; }
 body.light #pocket-undo button { color: #2b2926; }
 body.light #pocket-undo button:disabled { color: #b0aa9f; }
+
+/* the shelf's Library button, dressed like + Shelf beside it */
+#library-btn {
+  background: none; border: 1px solid #3a3a3a; color: var(--muted);
+  border-radius: 6px; padding: 5px 12px; font-size: 12px;
+}
+body.bright #library-btn { color: #b4b4b4; border-color: #555; }
+body.light #library-btn { border-color: #cfcac0; }
+body.light.bright #library-btn { color: var(--muted); border-color: #a39d92; }

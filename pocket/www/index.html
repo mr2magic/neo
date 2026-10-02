@@ -17,6 +17,7 @@
       <div class="shelf-header-right">
         <span id="author-chip" title="Click to change your author name"></span>
         <button id="import-btn" hidden>&#8681; Import</button>
+        <button id="library-btn" title="Where your books live" hidden>Library</button>
         <button id="add-shelf-btn" title="Add a shelf">+ Shelf</button>
       </div>
     </header>
@@ -163,6 +164,25 @@
   <script src="covers.js"></script>
   <script src="app.js"></script>
   <script>
+    // Library: where the books live, and a way to point Pocket at another
+    // folder (the Mac's library in iCloud Drive, say). A new folder means
+    // starting over there, as desktop NEO restarts in a new library folder.
+    const libraryBtn = document.getElementById('library-btn');
+    const libraryHome = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios'
+      ? (window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('LibraryHome') : window.Capacitor.Plugins.LibraryHome)
+      : null;
+    if (libraryHome) {
+      libraryBtn.hidden = false;
+      libraryBtn.addEventListener('click', async () => {
+        try {
+          const r = await libraryHome.choose();
+          if (r && r.changed) location.reload();
+        } catch (err) {
+          if (typeof showErrorDetail === 'function') showErrorDetail('Library folder: ' + (err && err.message || err));
+        }
+      });
+    }
+
     // the ☰ button stands in for the desktop's hover-to-reveal chapter pane
     // tap ☰ for chapters; long-press it to toggle the on-screen keyboard
     const menuBtn = document.getElementById('pocket-chapters');
