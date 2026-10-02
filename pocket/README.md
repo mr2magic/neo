@@ -56,6 +56,11 @@ capability with **iCloud Documents** ticked and the container
 iPad, and press Run. After changing `app.js`, `styles.css` or anything in
 `www/`, repeat the `cp` and `npx cap copy ios`, then Run again.
 
+Or skip Xcode's window: `scripts/build-ios.sh` does all of the above from
+Terminal (copy, sync, build, install, launch) with your own team and app ID
+from `scripts/local.env` (see `local.env.example`), leaving the project
+untouched. Add `--no-icloud` for an On My iPad library.
+
 `ios/App/App/LibraryHome.swift` is the one piece of native code: it tells the
 bridge where the library folder is (iCloud or on-device) and pulls down files
 another device wrote before they're read.
