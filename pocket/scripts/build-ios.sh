@@ -64,16 +64,21 @@ buildno="$(date +%Y%m%d%H%M)"
 
 security unlock-keychain ~/Library/Keychains/login.keychain-db
 
+# The app itself is built outside the repo: a Desktop or Documents folder
+# synced by iCloud tags what's made there, and codesign refuses the tags
+# ("resource fork, Finder information, or similar detritus not allowed")
+products="$HOME/Library/Developer/Xcode/DerivedData/NEO-Pocket-device"
+
 echo "Building (about a minute)…"
 log="$build/xcodebuild.log"
 cd "$pocket/ios/App"
 xcodebuild -project App.xcodeproj -scheme App -configuration Debug -allowProvisioningUpdates \
-  -destination "id=$DEVICE" -derivedDataPath "$build/dd" \
+  -destination "id=$DEVICE" -derivedDataPath "$products" \
   DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
   CODE_SIGN_ENTITLEMENTS="$ent" INFOPLIST_FILE="$plist" CURRENT_PROJECT_VERSION="$buildno" build > "$log" 2>&1 \
-  || { grep -E "errSec|error:" "$log" | cut -c1-200; echo "BUILD FAILED (log: $log)"; exit 1; }
+  || { grep -E "errSec|error:|detritus" "$log" | cut -c1-200; echo "BUILD FAILED (log: $log)"; exit 1; }
 
 echo "Installing…"
-xcrun devicectl device install app --device "$DEVICE" "$build/dd/Build/Products/Debug-iphoneos/App.app"
+xcrun devicectl device install app --device "$DEVICE" "$products/Build/Products/Debug-iphoneos/App.app"
 xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE_ID" \
   || echo "Installed. If it didn't open: Settings → General → VPN & Device Management → trust your developer profile."
