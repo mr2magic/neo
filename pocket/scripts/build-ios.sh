@@ -31,6 +31,9 @@ cd "$pocket"
 cp "$root/app.js" "$root/covers.js" "$root/styles.css" "$root/i18n.js" www/
 cp "$root/node_modules/jszip/dist/jszip.min.js" www/
 cp -R "$root/fonts" "$root/locales" www/
+# made fresh each time: rewriting files in a folder iCloud is syncing (a
+# Desktop or Documents in iCloud) leaves "name 2.js" copies behind
+rm -rf ios/App/App/public
 npx cap sync ios >/dev/null
 
 # entitlements for your team, outside the project
