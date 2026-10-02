@@ -7,6 +7,52 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+// ---------------------------------------------------------------------------
+// Portable mode: NEO on a USB stick. A folder named "NEO Data" beside the app
+// (beside NEO.app, the portable .exe, or the .AppImage) turns it on. NEO's own
+// settings then live in that folder instead of the computer's, the library
+// defaults to "NEO Library" beside it, and a library on the stick is
+// remembered relative to the stick, so a new drive letter doesn't lose it.
+// NEO_PORTABLE_DIR names the folder directly (how `npm start` tries it out).
+// ---------------------------------------------------------------------------
+const PORTABLE_DATA = 'NEO Data';
+function findPortableRoot() {
+  const env = process.env || {};
+  let dir = env.NEO_PORTABLE_DIR;
+  if (!dir && app.isPackaged) {
+    if (env.PORTABLE_EXECUTABLE_DIR) dir = env.PORTABLE_EXECUTABLE_DIR; // Windows portable .exe (runs unpacked in temp)
+    else if (env.APPIMAGE) dir = path.dirname(env.APPIMAGE);            // Linux AppImage (runs mounted elsewhere)
+    else if (process.platform === 'darwin') dir = path.resolve(process.execPath, '../../../..'); // NEO.app/Contents/MacOS/NEO
+    else dir = path.dirname(process.execPath);
+  }
+  if (!dir) return null;
+  try {
+    return fs.statSync(path.join(dir, PORTABLE_DATA)).isDirectory() ? path.resolve(dir) : null;
+  } catch { return null; }
+}
+const PORTABLE_ROOT = findPortableRoot();
+// before anything reads userData — settings, keys, the page's own storage
+if (PORTABLE_ROOT) app.setPath('userData', path.join(PORTABLE_ROOT, PORTABLE_DATA));
+
+function defaultLibraryDir() {
+  return PORTABLE_ROOT
+    ? path.join(PORTABLE_ROOT, 'NEO Library')
+    : path.join(app.getPath('documents'), 'NEO Library');
+}
+// settings.libraryDir: relative when it's on the stick, absolute otherwise
+function libraryDirForSettings(dir) {
+  if (PORTABLE_ROOT) {
+    const rel = path.relative(PORTABLE_ROOT, dir);
+    if (!path.isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + path.sep)) return rel || '.';
+  }
+  return dir;
+}
+function libraryDirFromSettings(stored) {
+  if (!stored) return null;
+  if (path.isAbsolute(stored)) return stored;
+  return PORTABLE_ROOT ? path.resolve(PORTABLE_ROOT, stored) : null;
+}
+
 // Every disk request from the page passes through here: a write the system
 // refuses (see reportBlockedWrite) is explained to the writer, then the error
 // goes back to the page as before.
@@ -146,8 +192,7 @@ ipcMain.handle('i18n:reload', (e) => {
 // The library is plain files, so the writer moves them; NEO only follows.
 async function chooseLibraryFolder() {
   const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-  const defaultDir = path.join(app.getPath('documents'), 'NEO Library');
-  const custom = LIBRARY_DIR !== defaultDir;
+  const custom = LIBRARY_DIR !== defaultLibraryDir();
   const ask = await dialog.showMessageBox(win, {
     type: 'question',
     message: t('Library folder'),
@@ -172,7 +217,7 @@ async function chooseLibraryFolder() {
   }
   if (next === LIBRARY_DIR) return;
   const settings = readSettings();
-  if (next) settings.libraryDir = next; else delete settings.libraryDir;
+  if (next) settings.libraryDir = libraryDirForSettings(next); else delete settings.libraryDir;
   writeSettings(settings);
   app.relaunch();
   app.exit(0);
@@ -226,7 +271,7 @@ function checkLibraryWritable() {
       LIBRARY_DIR = picked[0];
       LIBRARY_FILE = path.join(LIBRARY_DIR, 'library.json');
       const settings = readSettings();
-      settings.libraryDir = LIBRARY_DIR;
+      settings.libraryDir = libraryDirForSettings(LIBRARY_DIR);
       try { writeSettings(settings); } catch (err) { logError('settings', err); }
     }
   }
@@ -1961,14 +2006,16 @@ ipcMain.handle('app:version', () => app.getVersion());
 // and opens again. Help → Check for Update… shows where that stands — most
 // often it's already downloaded, and the window offers "Restart to update"
 // (the page saves itself first). A build that can't self-update — `npm
-// start`, the Windows portable .exe, anything unsigned — falls back to the
-// release page on GitHub, as before.
+// start`, the Windows portable .exe, a portable copy on a stick, anything
+// unsigned — falls back to the release page on GitHub, as before.
 let updater = null;          // electron-updater's autoUpdater, wired once
 let updaterReady = false;    // an update is downloaded and waiting
 // where the background download stands, so the window can pick it up mid-way
 const upd = { state: 'idle', version: '', percent: 0, transferred: 0, total: 0, message: '' };
 function getUpdater() {
-  if (updater || !app.isPackaged) return updater;
+  // (not on a stick: a new version half-written when it's pulled out is no
+  // version at all, so portable copies get the release page instead)
+  if (updater || !app.isPackaged || PORTABLE_ROOT) return updater;
   const { autoUpdater } = require('electron-updater');
   autoUpdater.logger = null;
   autoUpdater.autoDownload = true;       // found it? fetch it — nobody should have to ask
@@ -2122,11 +2169,12 @@ app.whenReady().then(() => {
   // individually guarded so no single failure can leave the app running
   // invisibly with no window.
   try {
-    // the real Documents folder (handles OneDrive-redirected Windows setups)
+    // the real Documents folder (handles OneDrive-redirected Windows setups),
+    // or the stick in portable mode
     try {
-      LIBRARY_DIR = path.join(app.getPath('documents'), 'NEO Library');
+      LIBRARY_DIR = defaultLibraryDir();
       // …unless the writer chose their own folder (File → Library Folder…)
-      const chosen = readSettings().libraryDir;
+      const chosen = libraryDirFromSettings(readSettings().libraryDir);
       if (chosen && fs.existsSync(chosen) && fs.statSync(chosen).isDirectory()) LIBRARY_DIR = chosen;
       LIBRARY_FILE = path.join(LIBRARY_DIR, 'library.json');
     } catch (err) {

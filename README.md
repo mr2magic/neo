@@ -23,6 +23,20 @@ Get the latest installer from the **[Releases page](../../releases)**:
 
   If it complains about a sandbox (common on Ubuntu 24.04 and newer), run it as `./NEO-*.AppImage --no-sandbox`. Your library lives in `~/Documents/NEO Library`; File → Library Folder… moves it anywhere you like.
 
+### Running NEO from a USB stick
+
+Put NEO on the stick (`NEO.app`, the Windows `portable` `.exe`, or the `.AppImage`) and make an empty folder named `NEO Data` next to it:
+
+```
+STICK/
+  NEO.app            (or NEO-x.y.z-portable.exe, or NEO-x.y.z.AppImage)
+  NEO Data/
+```
+
+That folder switches on portable mode. NEO keeps its own settings in `NEO Data` instead of on the computer, and your library lives in `NEO Library` beside it, so the books, backups and settings all travel with the stick. If you choose another library folder on the stick, NEO remembers it relative to the stick, so a different drive letter on the next computer doesn't matter. A few things stay with each computer: AI keys are locked to the computer's keychain, so you enter them once per computer. Portable copies don't update themselves: Help → Check for Update… links to the release page, and you replace the app on the stick.
+
+Quit NEO before you unplug the stick. On a Mac, if macOS has marked the app as downloaded, it may run it from a hidden copy where it can't see `NEO Data`. Clear the mark once with `xattr -dr com.apple.quarantine /Volumes/STICK/NEO.app`. Use exFAT if one stick has to work on Mac, Windows and Linux.
+
 ## Why NEO?
 
 **The bookshelf** 

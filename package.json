@@ -113,6 +113,7 @@
       "!pocket/**",
       "!dist/**",
       "!Backups/**",
+      "!Claude outputs/**",
       "!*.md",
       "!.github/**",
       "!scripts/**",
