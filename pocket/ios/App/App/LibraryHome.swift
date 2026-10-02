@@ -156,11 +156,18 @@ class NeoBridgeViewController: CAPBridgeViewController {
             }
             class_addMethod(made, NSSelectorFromString("keyboardAppearance"),
                             imp_implementationWithBlock(appearance), "q@:")
-            // no Paste / AutoFill / Format bubble on a long press in the text:
-            // NEO's page has its own ways, and the bubble only ever got in the way
-            let noMenu: @convention(block) (AnyObject, Selector, AnyObject?) -> Bool = { _, _, _ in false }
-            class_addMethod(made, #selector(UIResponder.canPerformAction(_:withSender:)),
-                            imp_implementationWithBlock(noMenu), "B@::@")
+            // the long-press bubble keeps Cut, Copy, Paste and the selecting
+            // that goes with them (a writer without a keyboard has no other
+            // way), and drops AutoFill, Format, Look Up, Translate and the rest:
+            // NEO's page has its own ways. WebKit still says when each applies.
+            let canPerform = #selector(UIResponder.canPerformAction(_:withSender:))
+            typealias CanPerform = @convention(c) (AnyObject, Selector, Selector, AnyObject?) -> Bool
+            let webKitSays = unsafeBitCast(class_getMethodImplementation(object_getClass(view), canPerform), to: CanPerform.self)
+            let editing: Set<String> = ["cut:", "copy:", "paste:", "select:", "selectAll:"]
+            let editOnly: @convention(block) (AnyObject, Selector, AnyObject?) -> Bool = { me, action, sender in
+                editing.contains(NSStringFromSelector(action)) && webKitSays(me, canPerform, action, sender)
+            }
+            class_addMethod(made, canPerform, imp_implementationWithBlock(editOnly), "B@::@")
             objc_registerClassPair(made)
             cls = made
         }

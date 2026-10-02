@@ -2404,6 +2404,29 @@ function copyrightStarter() {
 /*  EDITOR — typing                                                    */
 /* ================================================================== */
 
+// A paste at the caret in a chapter: paragraphs, italics and bold come
+// along, everything else stays behind
+function pasteIntoManuscript(body, html, text) {
+  // hyphens set as dialogue dashes, the same as typing them
+  const edges = caretEdges(body);
+  if (html) {
+    document.execCommand('insertHTML', false, cleanPasteHtml(html, { style: dashStyle(), ...edges }));
+    reconcileMarks();
+  } else if (text) {
+    const parts = text.replace(/\r/g, '').split(/\n+/).filter((p) => p.trim());
+    parts.forEach((p, i) => {
+      if (i > 0) document.execCommand('insertParagraph');
+      const line = dialogueDashes(p.trim(), dashStyle(), { start: i > 0 || edges.start, end: i < parts.length - 1 || edges.end, spaced: i === 0 && edges.spaced });
+      // plain text written in Markdown keeps its *italics* and **bold**
+      const styled = library && library.markdownOff ? null : markdownInline(line);
+      if (styled) {
+        document.execCommand('insertHTML', false, styled);
+        stripJunkSpans(body); // the engine wraps inserted HTML in style spans
+      } else document.execCommand('insertText', false, line);
+    });
+  }
+}
+
 function wireChapterBody(body, chId) {
   body.addEventListener('focus', () => { currentChapterId = chId; updateCounters(); highlightNav(); });
 
@@ -2421,26 +2444,7 @@ function wireChapterBody(body, chId) {
   // paste without formatting
   body.addEventListener('paste', (e) => {
     e.preventDefault();
-    const html = e.clipboardData.getData('text/html');
-    const text = e.clipboardData.getData('text/plain');
-    // hyphens set as dialogue dashes, the same as typing them
-    const edges = caretEdges(body);
-    if (html) {
-      document.execCommand('insertHTML', false, cleanPasteHtml(html, { style: dashStyle(), ...edges }));
-      reconcileMarks();
-    } else if (text) {
-      const parts = text.replace(/\r/g, '').split(/\n+/).filter((p) => p.trim());
-      parts.forEach((p, i) => {
-        if (i > 0) document.execCommand('insertParagraph');
-        const line = dialogueDashes(p.trim(), dashStyle(), { start: i > 0 || edges.start, end: i < parts.length - 1 || edges.end, spaced: i === 0 && edges.spaced });
-        // plain text written in Markdown keeps its *italics* and **bold**
-        const styled = library && library.markdownOff ? null : markdownInline(line);
-        if (styled) {
-          document.execCommand('insertHTML', false, styled);
-          stripJunkSpans(body); // the engine wraps inserted HTML in style spans
-        } else document.execCommand('insertText', false, line);
-      });
-    }
+    pasteIntoManuscript(body, e.clipboardData.getData('text/html'), e.clipboardData.getData('text/plain'));
   });
   // While macOS composes input, shortcuts stand down completely.
   let composing = false;
@@ -3938,6 +3942,34 @@ function titleEnter(e) {
   if (first) focusChapter(first);
   else focusChapter(createChapterAt(storyEnd()));
 }
+// A title is one line. A paste of more than that is the story itself (a new
+// book's caret starts in the title, so that's where a first paste lands):
+// it goes where Enter would, at the end of the first chapter.
+function titlePaste(e) {
+  e.preventDefault();
+  const html = e.clipboardData.getData('text/html');
+  const text = e.clipboardData.getData('text/plain');
+  if (text && !/\S\s*\n\s*\S/.test(text.trim())) {
+    document.execCommand('insertText', false, text.replace(/\s+/g, ' ').trim());
+    return;
+  }
+  const first = book.chapterOrder.find((c) => isStory(c)) || createChapterAt(storyEnd());
+  focusChapterEnd(first);
+  const body = document.querySelector(`.chapter[data-id="${first}"] .chapter-body`);
+  if (body && body.isContentEditable && document.activeElement === body) pasteIntoManuscript(body, html, text);
+}
+$('#tp-title').addEventListener('paste', titlePaste);
+$('#tp-subtitle').addEventListener('paste', titlePaste);
+// Every other editable line (the author, shelf names, chapter titles and
+// notes, outline lines) is one line of plain text: a paste the field didn't
+// take care of itself comes in as words only, not another app's fonts,
+// colors, pictures and line breaks
+document.addEventListener('paste', (e) => {
+  const el = e.target && e.target.closest ? e.target.closest('[contenteditable="true"]') : null;
+  if (e.defaultPrevented || !el) return;
+  e.preventDefault();
+  document.execCommand('insertText', false, e.clipboardData.getData('text/plain').replace(/\s+/g, ' ').trim());
+});
 $('#tp-title').addEventListener('input', () => {
   book.title = $('#tp-title').textContent.trim() || t('Untitled');
   scheduleMetaSave();
